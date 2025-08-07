@@ -12,7 +12,7 @@ class PostController extends Controller
      */
     public function index()
     {
-        return view('posts/index',[
+        return view('posts/index', [
             'posts' => Post::with('user')->latest()->get()
         ]);
     }
@@ -31,18 +31,20 @@ class PostController extends Controller
     public function store(Request $request)
     {
         $dataValidates = $request->validate([
-            'message' => ['required','min:8','max:255'],
+            'message' => ['required', 'min:8', 'max:255'],
+            'image' => ['nullable', 'image', 'max:2048'],
         ]);
 
-        //Post::create([
-        //     'message' => $dataValidates,
-        //     'user_id' => auth()->id()
-        // ]);
-    
+        if ($request->hasFile('image')) {
+            $file = $request->file('image');
+            $filename = time() . '.' . $file->extension();
+            $file->move(public_path('images'), $filename);
+            $dataValidates['image'] = $filename;
+        }
 
         $request->user()->posts()->create($dataValidates);
 
-        return to_route('posts.index')->with('status', __('Post Created Sucessfully!'));
+        return to_route('posts.index')->with('status', __('Post Created Successfully!'));
     }
 
     /**
@@ -58,7 +60,15 @@ class PostController extends Controller
      */
     public function edit(Post $post)
     {
-        //
+        // Verificar que el usuario sea el dueño del post
+        if (auth()->id() !== $post->user_id) {
+            abort(403);
+        }
+
+        return response()->json([
+            'message' => $post->message,
+            'image' => $post->image
+        ]);
     }
 
     /**
@@ -66,7 +76,29 @@ class PostController extends Controller
      */
     public function update(Request $request, Post $post)
     {
-        //
+        if (auth()->id() !== $post->user_id) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'message' => ['required', 'min:8', 'max:255'],
+            'image' => ['sometimes', 'image', 'max:255'],
+        ]);
+
+        if ($request->hasFile('image')) {
+            // Eliminar imagen anterior
+            if ($post->image && file_exists(public_path('images/' . $post->image))) {
+                unlink(public_path('images/' . $post->image));
+            }
+
+            $filename = time() . '.' . $request->file('image')->extension();
+            $request->file('image')->move(public_path('images'), $filename);
+            $validated['image'] = $filename;
+        }
+
+        $post->update($validated);
+
+        return redirect()->route('posts.index')->with('status', __('Post Updated Successfully!'));
     }
 
     /**
@@ -74,6 +106,18 @@ class PostController extends Controller
      */
     public function destroy(Post $post)
     {
-        //
+        // Verificar autorización
+        if (auth()->id() !== $post->user_id) {
+            abort(403);
+        }
+
+        // Eliminar imagen
+        if ($post->image && file_exists(public_path('images/' . $post->image))) {
+            unlink(public_path('images/' . $post->image));
+        }
+
+        $post->delete();
+
+        return redirect()->route('posts.index')->with('status', __('Post Deleted Successfully!'));
     }
 }

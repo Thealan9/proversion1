@@ -8,10 +8,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Post extends Model
 {
     protected $fillable = [
-        'message'
+        'message',
+        'image',
+        'user_id'
     ];
 
-    public function user ():BelongsTo
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
